@@ -14,9 +14,13 @@ import {Provider} from 'react-redux';
 
 import {store} from './store/configureStore'
 import AppNavigator from "./navigation/AppNavigator";
-import {init} from './helpers/db'
+import {initDb} from "./helpers/db";
 
-console.log(init())
+initDb().then(() => {
+    console.log('db init success');
+  },
+  err => console.log('err', err)
+)
 
 const App = () => {
   return (

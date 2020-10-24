@@ -1,10 +1,11 @@
 import React, {Component} from 'react';
-import {Platform, StyleSheet, View} from 'react-native';
-import MapView, {PROVIDER_GOOGLE, Heatmap, WeightedLatLng, Circle} from 'react-native-maps'
+import {Dimensions, Platform, StyleSheet, Text, View} from 'react-native';
+import MapView, {PROVIDER_GOOGLE, Heatmap, WeightedLatLng, Circle, Marker} from 'react-native-maps'
 import Geolocation, {GeoCoordinates} from 'react-native-geolocation-service';
 import {PERMISSIONS, request} from 'react-native-permissions';
 import isPointWithinRadius from "geolib/es/isPointWithinRadius";
 import findNearest from "geolib/es/findNearest";
+
 
 import {DistrictData} from "../models/districtData";
 import {MapState} from "../store/reducers/mapReducer";
@@ -25,7 +26,11 @@ type IState = {
   heatMapData: WeightedLatLng[];
   showSafetyInfo: boolean;
   isUserInDangerArea: boolean;
-  mapState?: MapState
+  mapState?: MapState;
+  currentPosition: {
+    latitude: number;
+    longitude: number;
+  }
 };
 
 export default class MapComponent extends Component<IProps, IState> {
@@ -47,6 +52,10 @@ export default class MapComponent extends Component<IProps, IState> {
       heatMapData: [],
       showSafetyInfo: false,
       isUserInDangerArea: false,
+      currentPosition: {
+        latitude: 0,
+        longitude: 0
+      }
     };
   }
 
@@ -56,7 +65,8 @@ export default class MapComponent extends Component<IProps, IState> {
         <MapView style={styles.map}
                  provider={PROVIDER_GOOGLE}
                  showsUserLocation={true}
-
+                 followsUserLocation={true}
+                 cacheEnabled={true}
                  initialRegion={this.state.initialPosition}
                  ref={map => this._map = map}>
           <Heatmap points={this.state.heatMapData}
@@ -75,8 +85,10 @@ export default class MapComponent extends Component<IProps, IState> {
                      colorMapSize: 5000,
                    }}
                    radius={40}/>
+
           {this.state.heatMapData.map((p, index) => (
-            <Circle center={{longitude: p.longitude, latitude: p.latitude}} radius={(p.weight as number) * 10}
+            <Circle center={{longitude: p.longitude, latitude: p.latitude}} strokeWidth={4}
+                    radius={(p.weight as number) * 10}
                     key={index}/>
           ))}
         </MapView>
@@ -86,7 +98,23 @@ export default class MapComponent extends Component<IProps, IState> {
 
   componentDidMount() {
     this._requestLocationPermission();
-    this.setState({heatMapData: this.props.districtData})
+    if (this.props.districtData.length) {
+      this.setState({heatMapData: this.props.districtData})
+    } else {
+      this.setState({
+        heatMapData: [{
+          weight: 0,
+          longitude: 0,
+          latitude: 0
+        }]
+      })
+    }
+
+
+    const {width, height} = Dimensions.get('window');
+    const ASPECT_RATIO = width / height;
+
+    console.log(ASPECT_RATIO)
   }
 
   componentWillUnmount() {
@@ -117,6 +145,12 @@ export default class MapComponent extends Component<IProps, IState> {
 
     Geolocation.getCurrentPosition(
       (position) => {
+        this.setState({
+          currentPosition: {
+            longitude: position.coords.longitude,
+            latitude: position.coords.latitude
+          }
+        })
         this._updateCamara(position.coords, (position.coords.heading as number));
       },
       (error) => {
@@ -127,14 +161,24 @@ export default class MapComponent extends Component<IProps, IState> {
 
     this.wid = Geolocation.watchPosition(
       (position) => {
-        const nearestGeoFence = (findNearest(position.coords, this.state.heatMapData) as WeightedLatLng)
-        this._checkCurrentLocationIsWithinTheRadius(position.coords, nearestGeoFence);
-        this._updateCamara(position.coords, (position.coords.heading as number));
+        console.log('watch ping')
+        console.log()
+        if (this.state.heatMapData.length) {
+          const nearestGeoFence = (findNearest(position.coords, this.state.heatMapData) as WeightedLatLng)
+          this._checkCurrentLocationIsWithinTheRadius(position.coords, nearestGeoFence);
+          this._updateCamara(position.coords, (position.coords.heading as number));
+        }
+        this.setState({
+          currentPosition: {
+            longitude: position.coords.longitude,
+            latitude: position.coords.latitude
+          }
+        })
       },
       (error) => {
         console.log(error.code, error.message);
       },
-      {enableHighAccuracy: true, interval: 5000}
+      {enableHighAccuracy: true, fastestInterval: 5000}
     );
   }
 
@@ -167,20 +211,21 @@ export default class MapComponent extends Component<IProps, IState> {
   }
 
   private _updateCamara(coords: GeoCoordinates, heading: number) {
-    if(this._map && this._map.animateCamera) {
+    if (this._map && this._map.animateCamera) {
       this._map.animateCamera({
         center: {
           latitude: coords.latitude,
           longitude: coords.longitude,
         },
-        pitch: 70,
-        altitude: 5,
+        pitch: 40,
+        altitude: 0,
         heading: heading,
         zoom: 16.5,
       }, {
         duration: 1000
       })
     }
+
 
   }
 }

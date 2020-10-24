@@ -5,8 +5,9 @@ import {useDispatch, useSelector} from "react-redux";
 
 import LoadingScreen from "../screens/LoadingScreen";
 import {AppState} from "../store/configureStore";
-import {GetMapData} from "../store/actions/mapAction";
+import {GetMapData, GetMapDataFromLocalDb} from "../store/actions/mapAction";
 import MapScreen from "../screens/MapScreen";
+import NetInfo from "@react-native-community/netinfo";
 
 const MyStack = createStackNavigator();
 
@@ -16,7 +17,16 @@ const AppNavigator = () => {
   const dispatch = useDispatch();
 
   useEffect(() => {
-    dispatch(GetMapData());
+
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if(state.isConnected) {
+        console.log('has internet')
+        dispatch(GetMapData());
+      } else {
+        console.log('no internet')
+        dispatch(GetMapDataFromLocalDb());
+      }
+    });
   }, [])
 
   return (
@@ -27,6 +37,7 @@ const AppNavigator = () => {
       </MyStack.Navigator>
     </NavigationContainer>
   )
+
 }
 
 export default AppNavigator;
